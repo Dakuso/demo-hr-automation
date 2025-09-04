@@ -22,75 +22,59 @@ def get_gdp_data():
     """
 
     # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+    # NOTE: This function and its data are not used in the final app display,
+    # but are kept as part of the original script structure.
+    # To run this locally, you would need a 'data/gdp_data.csv' file.
+    try:
+        DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
+        raw_gdp_df = pd.read_csv(DATA_FILENAME)
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+        MIN_YEAR = 1960
+        MAX_YEAR = 2022
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+        gdp_df = raw_gdp_df.melt(
+            ['Country Code'],
+            [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
+            'Year',
+            'GDP',
+        )
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+        # Convert years from string to integers
+        gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
 
-    return gdp_df
+        return gdp_df
+    except FileNotFoundError:
+        # Return an empty DataFrame if the file is not found
+        return pd.DataFrame()
 
 
 def highlight_changes(current_df, proposed_df):
     """
     Create styled dataframes that highlight changes between current and proposed values
     """
-    def style_current(row):
-        # Find the corresponding proposed value
+    def style_row(row, other_df, self_col, other_col):
         field = row['Field']
-        current_val = row['Current Value']
+        self_val = row[self_col]
         
-        # Find proposed value for this field
-        proposed_row = proposed_df[proposed_df['Field'] == field]
-        if not proposed_row.empty:
-            proposed_val = proposed_row['Proposed Value'].iloc[0]
-            if str(current_val) != str(proposed_val):
-                return ['', 'background-color: #2e0208']  # Light red for changed rows
-        return ['', '']  # No styling for unchanged rows
-    
-    def style_proposed(row):
-        # Find the corresponding current value
-        field = row['Field']
-        proposed_val = row['Proposed Value']
+        other_row = other_df[other_df['Field'] == field]
         
-        # Find current value for this field
-        current_row = current_df[current_df['Field'] == field]
-        if not current_row.empty:
-            current_val = current_row['Current Value'].iloc[0]
-            if str(current_val) != str(proposed_val):
-                return ['', 'background-color: #2e0208']  # Light red for changed rows
-        return ['', '']  # No styling for unchanged rows
-    
+        # Default style is no background color
+        style = [''] * len(row)
+        
+        if not other_row.empty:
+            other_val = other_row[other_col].iloc[0]
+            if str(self_val) != str(other_val):
+                # Apply red background to the entire row if values differ
+                style = ['background-color: #4a272a'] * len(row)
+        return style
+
     # Apply styling
-    styled_current = current_df.style.apply(style_current, axis=1)
-    styled_proposed = proposed_df.style.apply(style_proposed, axis=1)
+    styled_current = current_df.style.apply(
+        style_row, other_df=proposed_df, self_col='Current Value', other_col='Proposed Value', axis=1
+    )
+    styled_proposed = proposed_df.style.apply(
+        style_row, other_df=current_df, self_col='Proposed Value', other_col='Current Value', axis=1
+    )
     
     return styled_current, styled_proposed
 
@@ -141,7 +125,7 @@ def process_email_with_langgraph(email_text):
             "status": "success",
             "word_count": word_count,
             "char_count": char_count,
-            "summary": f"Email processed successfully. Giovanni Matadore moved from Locarno to Lugano",
+            "summary": "Email processed successfully. Giovanni Matadore moved from Locarno to Lugano.",
             "processed_text": email_text[:100] + "..." if len(email_text) > 100 else email_text,
             "current_data": current_data,
             "proposed_data": proposed_data
@@ -155,8 +139,15 @@ def process_email_with_langgraph(email_text):
             "error": str(e)
         }
 
-
-gdp_df = get_gdp_data()
+# -----------------------------------------------------------------------------
+# Initialize session state variables
+# This ensures that these values persist across reruns.
+if 'processing_complete' not in st.session_state:
+    st.session_state.processing_complete = False
+if 'processing_result' not in st.session_state:
+    st.session_state.processing_result = None
+if 'changes_accepted' not in st.session_state:
+    st.session_state.changes_accepted = False
 
 # -----------------------------------------------------------------------------
 # Draw the actual page
@@ -183,64 +174,78 @@ st.header('Email input', divider='blue')
 email_input = st.text_area(
     "Paste your email content here:",
     height=200,
-    placeholder="Paste your email content here and click 'Process Email' to run your LangGraph code..."
+    placeholder="Paste your email content here and click 'Process Email'..."
 )
 
 # Button to process email
 if st.button('Process Email', type='primary'):
     if email_input.strip():
-        with st.spinner('Processing email with LangGraph...'):
-            # Call your processing function
+        with st.spinner('Processing email...'):
             result = process_email_with_langgraph(email_input)
             
             if result["status"] == "success":
-                st.success("Email processed successfully!")
-                
-                # Display results
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Word Count", result["word_count"])
-                with col2:
-                    st.metric("Character Count", result["char_count"])
-                
-                # Display the two tables with Giovanni's data
-                st.subheader("Data Comparison for Giovanni Matadore")
-                
-                # Create DataFrames
-                current_df = pd.DataFrame(result["current_data"])
-                proposed_df = pd.DataFrame(result["proposed_data"])
-                
-                # Get styled dataframes with highlighted changes
-                styled_current, styled_proposed = highlight_changes(current_df, proposed_df)
-                
-                # Create three columns: table1, arrow, table2
-                table_col1, arrow_col, table_col2 = st.columns([3, 1, 3])
-                
-                with table_col1:
-                    st.markdown("**📊 From Database**")
-                    st.dataframe(styled_current, use_container_width=True, hide_index=True)
-                
-                with arrow_col:
-                    st.markdown("<br><br><br><br>", unsafe_allow_html=True)  # Add some vertical spacing
-                    st.markdown("### ➡️")
-                
-                with table_col2:
-                    st.markdown("**📝 Proposed Changes**")
-                    st.dataframe(styled_proposed, use_container_width=True, hide_index=True)
-
-                st.subheader("Processing Summary")
-                st.write(result["summary"])
-                
-                # Right-align the Accept changes button
-                col1, col2, col3 = st.columns([2, 1, 1])
-                
-                with col3:
-                    st.button('Accept changes', type='secondary')
-                
+                # Store the result in the session state and reset flags
+                st.session_state.processing_complete = True
+                st.session_state.processing_result = result
+                st.session_state.changes_accepted = False # Reset if reprocessing
             else:
                 st.error(f"Error processing email: {result['error']}")
+                st.session_state.processing_complete = False
     else:
         st.warning("Please paste some email content before processing.")
+
+# This block will now run ONLY if processing was completed successfully in a previous run.
+if st.session_state.processing_complete:
+    result = st.session_state.processing_result
+    
+    st.success("Email processed successfully!")
+    
+    # Display results
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Word Count", result["word_count"])
+    with col2:
+        st.metric("Character Count", result["char_count"])
+    
+    # Display the two tables with Giovanni's data
+    st.subheader("Data Comparison for Giovanni Matadore")
+    
+    # Create DataFrames
+    current_df = pd.DataFrame(result["current_data"])
+    proposed_df = pd.DataFrame(result["proposed_data"])
+    
+    # Get styled dataframes with highlighted changes
+    styled_current, styled_proposed = highlight_changes(current_df, proposed_df)
+    
+    # Create three columns: table1, arrow, table2
+    table_col1, arrow_col, table_col2 = st.columns([5, 1, 5])
+    
+    with table_col1:
+        st.markdown("**📊 From Database**")
+        st.dataframe(styled_current, use_container_width=True, hide_index=True)
+    
+    with arrow_col:
+        st.markdown("<br><br><br><br>", unsafe_allow_html=True)  # Add some vertical spacing
+        st.markdown("<p style='text-align: center; font-size: 2.5em;'>➡️</p>", unsafe_allow_html=True)
+    
+    with table_col2:
+        st.markdown("**📝 Proposed Changes**")
+        st.dataframe(styled_proposed, use_container_width=True, hide_index=True)
+
+    # --- ACCEPT CHANGES LOGIC ---
+    # Show the "Accept changes" button only if they haven't been accepted yet.
+    if not st.session_state.changes_accepted:
+        # Align the button to the right
+        b_col1, b_col2 = st.columns([4, 1])
+        with b_col2:
+            if st.button('Accept changes'):
+                st.session_state.changes_accepted = True
+                st.rerun() # Rerun the script immediately to show the success message
+
+    # Show the success message if changes have been accepted.
+    if st.session_state.changes_accepted:
+        st.success('✅ Your changes have been executed and documented! See the documentation [here](https://dakuso.github.io).')
+
 
 # Add some spacing
 ''
