@@ -5,8 +5,8 @@ from pathlib import Path
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+    page_title='Email Processing Demo',
+    page_icon='📧', # This is an emoji shortcode. Could be a URL too.
 )
 
 # -----------------------------------------------------------------------------
@@ -57,6 +57,68 @@ def get_gdp_data():
 
     return gdp_df
 
+
+def process_email_with_langgraph(email_text):
+    """
+    Process email and generate Giovanni Matadore data comparison.
+    Replace this with your actual LangGraph implementation.
+    """
+    try:
+        # Simulate some processing
+        word_count = len(email_text.split())
+        char_count = len(email_text)
+        
+        # Sample data for Giovanni Matadore - Current in database
+        current_data = {
+            "Field": ["First Name", "Last Name", "Date of Birth", "Address", "City", "Postal Code", "Phone", "Email", "Occupation"],
+            "Current Value": [
+                "Giovanni", 
+                "Matadore", 
+                "1985-03-15", 
+                "Via Ciseri 12", 
+                "Locarno", 
+                "6600", 
+                "+41 91 751 2847", 
+                "g.matadore@email.ch", 
+                "Software Engineer"
+            ]
+        }
+        
+        # Proposed changes
+        proposed_data = {
+            "Field": ["First Name", "Last Name", "Date of Birth", "Address", "City", "Postal Code", "Phone", "Email", "Occupation"],
+            "Proposed Value": [
+                "Giovanni", 
+                "Matadore", 
+                "1985-03-15", 
+                "Via Pretorio 18", 
+                "Lugano", 
+                "6900", 
+                "+41 91 922 3456", 
+                "g.matadore@lugano-mail.ch", 
+                "Senior Software Engineer"
+            ]
+        }
+        
+        result = {
+            "status": "success",
+            "word_count": word_count,
+            "char_count": char_count,
+            "summary": f"Email processed successfully. Contains {word_count} words and {char_count} characters.",
+            "processed_text": email_text[:100] + "..." if len(email_text) > 100 else email_text,
+            "current_data": current_data,
+            "proposed_data": proposed_data
+        }
+        
+        return result
+    
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 gdp_df = get_gdp_data()
 
 # -----------------------------------------------------------------------------
@@ -64,88 +126,79 @@ gdp_df = get_gdp_data()
 
 # Set the title that appears at the top of the page.
 '''
-# :earth_americas: GDP dashboard
+# 📧 Email automation
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
+We're processing incoming email requests by first receiving 
+the mail, then generating an action plan and displaying the results. 
+Once we get permission to execute, the system handles the 
+execution behind the scenes and provides a sample writeback.
 '''
 
 # Add some spacing
 ''
 ''
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+# -----------------------------------------------------------------------------
+# EMAIL PROCESSING SECTION
+st.header('Email input', divider='blue')
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
+# Text area for email input
+email_input = st.text_area(
+    "Paste your email content here:",
+    height=200,
+    placeholder="Paste your email content here and click 'Process Email' to run your LangGraph code..."
 )
 
+# Button to process email
+if st.button('Process Email', type='primary'):
+    if email_input.strip():
+        with st.spinner('Processing email with LangGraph...'):
+            # Call your processing function
+            result = process_email_with_langgraph(email_input)
+            
+            if result["status"] == "success":
+                st.success("Email processed successfully!")
+                
+                # Display results
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Word Count", result["word_count"])
+                with col2:
+                    st.metric("Character Count", result["char_count"])
+                
+                st.subheader("Processing Summary")
+                st.write(result["summary"])
+                
+                # Display the two tables with Giovanni's data
+                st.subheader("Data Comparison for Giovanni Matadore")
+                
+                # Create three columns: table1, arrow, table2
+                table_col1, arrow_col, table_col2 = st.columns([3, 1, 3])
+                
+                with table_col1:
+                    st.markdown("**📊 From Database**")
+                    current_df = pd.DataFrame(result["current_data"])
+                    st.dataframe(current_df, use_container_width=True, hide_index=True)
+                
+                with arrow_col:
+                    st.markdown("<br><br><br><br>", unsafe_allow_html=True)  # Add some vertical spacing
+                    st.markdown("### ➡️")
+                
+                with table_col2:
+                    st.markdown("**📝 Proposed Changes**")
+                    proposed_df = pd.DataFrame(result["proposed_data"])
+                    st.dataframe(proposed_df, use_container_width=True, hide_index=True)
+                
+                # Right-align the Accept changes button
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col3:
+                    st.button('Accept changes', type='secondary')
+                
+            else:
+                st.error(f"Error processing email: {result['error']}")
+    else:
+        st.warning("Please paste some email content before processing.")
+
+# Add some spacing
 ''
 ''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
