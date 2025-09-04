@@ -58,6 +58,43 @@ def get_gdp_data():
     return gdp_df
 
 
+def highlight_changes(current_df, proposed_df):
+    """
+    Create styled dataframes that highlight changes between current and proposed values
+    """
+    def style_current(row):
+        # Find the corresponding proposed value
+        field = row['Field']
+        current_val = row['Current Value']
+        
+        # Find proposed value for this field
+        proposed_row = proposed_df[proposed_df['Field'] == field]
+        if not proposed_row.empty:
+            proposed_val = proposed_row['Proposed Value'].iloc[0]
+            if str(current_val) != str(proposed_val):
+                return ['', 'background-color: #2e0208']  # Light red for changed rows
+        return ['', '']  # No styling for unchanged rows
+    
+    def style_proposed(row):
+        # Find the corresponding current value
+        field = row['Field']
+        proposed_val = row['Proposed Value']
+        
+        # Find current value for this field
+        current_row = current_df[current_df['Field'] == field]
+        if not current_row.empty:
+            current_val = current_row['Current Value'].iloc[0]
+            if str(current_val) != str(proposed_val):
+                return ['', 'background-color: #2e0208']  # Light red for changed rows
+        return ['', '']  # No styling for unchanged rows
+    
+    # Apply styling
+    styled_current = current_df.style.apply(style_current, axis=1)
+    styled_proposed = proposed_df.style.apply(style_proposed, axis=1)
+    
+    return styled_current, styled_proposed
+
+
 def process_email_with_langgraph(email_text):
     """
     Process email and generate Giovanni Matadore data comparison.
@@ -78,7 +115,7 @@ def process_email_with_langgraph(email_text):
                 "Via Ciseri 12", 
                 "Locarno", 
                 "6600", 
-                "+41 91 751 2847", 
+                "+41 91 922 3456", 
                 "g.matadore@email.ch", 
                 "Software Engineer"
             ]
@@ -96,7 +133,7 @@ def process_email_with_langgraph(email_text):
                 "6900", 
                 "+41 91 922 3456", 
                 "g.matadore@lugano-mail.ch", 
-                "Senior Software Engineer"
+                "Software Engineer"
             ]
         }
         
@@ -104,7 +141,7 @@ def process_email_with_langgraph(email_text):
             "status": "success",
             "word_count": word_count,
             "char_count": char_count,
-            "summary": f"Email processed successfully. Contains {word_count} words and {char_count} characters.",
+            "summary": f"Email processed successfully. Giovanni Matadore moved from Locarno to Lugano",
             "processed_text": email_text[:100] + "..." if len(email_text) > 100 else email_text,
             "current_data": current_data,
             "proposed_data": proposed_data
@@ -166,19 +203,22 @@ if st.button('Process Email', type='primary'):
                 with col2:
                     st.metric("Character Count", result["char_count"])
                 
-                st.subheader("Processing Summary")
-                st.write(result["summary"])
-                
                 # Display the two tables with Giovanni's data
                 st.subheader("Data Comparison for Giovanni Matadore")
+                
+                # Create DataFrames
+                current_df = pd.DataFrame(result["current_data"])
+                proposed_df = pd.DataFrame(result["proposed_data"])
+                
+                # Get styled dataframes with highlighted changes
+                styled_current, styled_proposed = highlight_changes(current_df, proposed_df)
                 
                 # Create three columns: table1, arrow, table2
                 table_col1, arrow_col, table_col2 = st.columns([3, 1, 3])
                 
                 with table_col1:
                     st.markdown("**📊 From Database**")
-                    current_df = pd.DataFrame(result["current_data"])
-                    st.dataframe(current_df, use_container_width=True, hide_index=True)
+                    st.dataframe(styled_current, use_container_width=True, hide_index=True)
                 
                 with arrow_col:
                     st.markdown("<br><br><br><br>", unsafe_allow_html=True)  # Add some vertical spacing
@@ -186,11 +226,14 @@ if st.button('Process Email', type='primary'):
                 
                 with table_col2:
                     st.markdown("**📝 Proposed Changes**")
-                    proposed_df = pd.DataFrame(result["proposed_data"])
-                    st.dataframe(proposed_df, use_container_width=True, hide_index=True)
+                    st.dataframe(styled_proposed, use_container_width=True, hide_index=True)
+
+                st.subheader("Processing Summary")
+                st.write(result["summary"])
                 
                 # Right-align the Accept changes button
                 col1, col2, col3 = st.columns([2, 1, 1])
+                
                 with col3:
                     st.button('Accept changes', type='secondary')
                 
