@@ -13,8 +13,8 @@ st.set_page_config(
 # Declare some useful functions.
 
 @st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+def get_employee_data():
+    """Grab Employee data from a CSV file.
 
     This uses caching to avoid having to read the file every time. If we were
     reading from an HTTP endpoint instead of a file, it's a good idea to set
@@ -24,28 +24,16 @@ def get_gdp_data():
     # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
     # NOTE: This function and its data are not used in the final app display,
     # but are kept as part of the original script structure.
-    # To run this locally, you would need a 'data/gdp_data.csv' file.
+    # To run this locally, you would need a 'data/employee_data.csv' file.
     try:
-        DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
+        DATA_FILENAME = Path(__file__).parent/'data/employee_data.csv'
         raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-        MIN_YEAR = 1960
-        MAX_YEAR = 2022
-
-        gdp_df = raw_gdp_df.melt(
-            ['Country Code'],
-            [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-            'Year',
-            'GDP',
-        )
-
-        # Convert years from string to integers
-        gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-        return gdp_df
+        return raw_gdp_df
+    
     except FileNotFoundError:
         # Return an empty DataFrame if the file is not found
         return pd.DataFrame()
+
 
 
 def highlight_changes(current_df, proposed_df):
@@ -165,6 +153,38 @@ execution behind the scenes and provides a sample writeback.
 # Add some spacing
 ''
 ''
+employee_display = True
+if employee_display:
+    st.title("🏢 Employee Data Dashboard")
+
+    # Load the data
+    employee_df = get_employee_data()
+
+    # Only proceed if the DataFrame is not empty
+    if not employee_df.empty:
+
+        # --- Interactive DataFrame (Best for Exploration) ---
+        st.header("Interactive Employee Table 📊")
+        st.info("You can sort, resize, and scroll through this table.")
+        st.dataframe(employee_df)
+
+        
+        # Calculate metrics
+        total_employees = len(employee_df)
+        avg_salary = employee_df['AnnualGrossSalary_CHF'].mean()
+
+        # Display metrics in columns
+        col1, col2 = st.columns(2)
+        col1.metric(label="Total Employees", value=total_employees)
+        col2.metric(label="Average Annual Salary (CHF)", value=f"{avg_salary:,.2f}")
+
+    else:
+        st.warning("Could not display data because the DataFrame is empty.")
+
+
+''
+''
+
 
 # -----------------------------------------------------------------------------
 # EMAIL PROCESSING SECTION
@@ -230,6 +250,9 @@ if st.session_state.processing_complete:
     
     with table_col2:
         st.markdown("**📝 Proposed Changes**")
+
+        # edited_proposed_df = st.data_editor(proposed_df, use_container_width=True, hide_index=True)
+        
         st.dataframe(styled_proposed, use_container_width=True, hide_index=True)
 
     # --- ACCEPT CHANGES LOGIC ---
