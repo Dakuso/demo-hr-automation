@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 from pathlib import Path
-from langg_automation import main as process_mail
+from langg_automation import process_employee_request as process_mail
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
@@ -67,6 +67,69 @@ def highlight_changes(current_df, proposed_df):
     
     return styled_current, styled_proposed
 
+def convert_to_field_value_format(df, header, field_mapping=None):
+    if df.empty:
+        return pd.DataFrame(columns=['Field', header])
+    
+    # Take first row if multiple rows exist
+    row = df.iloc[0]
+    
+    # Default field mapping for nice display names
+    if field_mapping is None:
+        field_mapping = {
+            'EmployeeID': 'Employee ID',
+            'FirstName': 'First Name',
+            'LastName': 'Last Name',
+            'DateOfBirth': 'Date of Birth', 
+            'AHV_Number': 'AHV Number',
+            'Nationality': 'Nationality',
+            'SwissCitizen': 'Swiss Citizen',
+            'WorkPermit': 'Work Permit',
+            'MaritalStatus': 'Marital Status',
+            'StreetAddress': 'Address',
+            'PostalCode': 'Postal Code',
+            'City': 'City',
+            'Canton': 'Canton',
+            'PhoneNumber': 'Phone',
+            'PersonalEmail': 'Email',
+            'JobTitle': 'Occupation',
+            'Department': 'Department',
+            'HireDate': 'Hire Date',
+            'WorkloadPercentage': 'Workload Percentage',
+            'AnnualGrossSalary_CHF': 'Annual Gross Salary (CHF)',
+            'IBAN': 'IBAN',
+            'BankName': 'Bank Name',
+            'TaxAtSource_Code': 'Tax at Source Code'
+        }
+    
+    fields = []
+    values = []
+    
+    for column in df.columns:
+        if column in ['BankName', 'EmployeeID', 'AHV_Number']:
+            continue
+        value = row[column]
+        
+        # Skip NaN values
+        if pd.isna(value):
+            continue
+            
+        # Get display name
+        field_name = field_mapping.get(column, column)
+        
+        # Format specific values
+        if column == 'WorkloadPercentage' and isinstance(value, (int, float)):
+            value = f"{value}%"
+        elif column == 'AnnualGrossSalary_CHF' and isinstance(value, (int, float)):
+            value = f"CHF {value:,.0f}"
+        
+        fields.append(field_name)
+        values.append(str(value))
+    
+    return pd.DataFrame({
+        'Field': fields,
+        header: values
+    })
 
 def process_email_with_langgraph(email_text):
     """
@@ -82,38 +145,6 @@ def process_email_with_langgraph(email_text):
         # Simulate some processing
         word_count = len(email_text.split())
         char_count = len(email_text)
-        
-        # Sample data for Giovanni Matadore - Current in database
-        current_data = {
-            "Field": ["First Name", "Last Name", "Date of Birth", "Address", "City", "Postal Code", "Phone", "Email", "Occupation"],
-            "Current Value": [
-                "Giovanni", 
-                "Matadore", 
-                "1985-03-15", 
-                "Via Ciseri 12", 
-                "Locarno", 
-                "6600", 
-                "+41 91 922 3456", 
-                "g.matadore@email.ch", 
-                "Software Engineer"
-            ]
-        }
-        
-        # Proposed changes
-        proposed_data = {
-            "Field": ["First Name", "Last Name", "Date of Birth", "Address", "City", "Postal Code", "Phone", "Email", "Occupation"],
-            "Proposed Value": [
-                "Giovanni", 
-                "Matadore", 
-                "1985-03-15", 
-                "Via Pretorio 18", 
-                "Lugano", 
-                "6900", 
-                "+41 91 922 3456", 
-                "g.matadore@lugano-mail.ch", 
-                "Software Engineer"
-            ]
-        }
         
         result = {
             "status": "success",
@@ -220,7 +251,7 @@ if st.button('Process Email', type='primary'):
     if email_input.strip():
         with st.spinner('Processing email...'):
             result = process_email_with_langgraph(email_input)
-            
+            print(result)
             if result["status"] == "success":
                 # Store the result in the session state and reset flags
                 st.session_state.processing_complete = True
@@ -238,19 +269,12 @@ if st.session_state.processing_complete:
     
     st.success("Email processed successfully!")
     
-    # Display results
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Word Count", result["word_count"])
-    with col2:
-        st.metric("Character Count", result["char_count"])
-    
     # Display the two tables with Giovanni's data
-    st.subheader("Data Comparison for Giovanni Matadore")
+    st.subheader("Employee data update suggestion")
     
     # Create DataFrames
-    current_df = result["current_data"]
-    proposed_df = result["proposed_data"]
+    current_df = convert_to_field_value_format(result["currentData"], 'Current Value')
+    proposed_df = convert_to_field_value_format(result["proposedData"], 'Proposed Value')
     
     # Get styled dataframes with highlighted changes
     styled_current, styled_proposed = highlight_changes(current_df, proposed_df)
