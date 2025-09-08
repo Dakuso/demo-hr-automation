@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 from pathlib import Path
+from langg_automation import main as process_mail
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
@@ -118,13 +119,10 @@ def process_email_with_langgraph(email_text):
             "status": "success",
             "word_count": word_count,
             "char_count": char_count,
-            "summary": "Email processed successfully. Giovanni Matadore moved from Locarno to Lugano.",
-            "processed_text": email_text[:100] + "..." if len(email_text) > 100 else email_text,
-            "current_data": current_data,
-            "proposed_data": proposed_data
         }
-        
-        return result
+
+        state = process_mail(email_text, st.session_state.anthropic_api_key)
+        return  {**result, **state}
     
     except Exception as e:
         return {
@@ -251,8 +249,8 @@ if st.session_state.processing_complete:
     st.subheader("Data Comparison for Giovanni Matadore")
     
     # Create DataFrames
-    current_df = pd.DataFrame(result["current_data"])
-    proposed_df = pd.DataFrame(result["proposed_data"])
+    current_df = result["current_data"]
+    proposed_df = result["proposed_data"]
     
     # Get styled dataframes with highlighted changes
     styled_current, styled_proposed = highlight_changes(current_df, proposed_df)
