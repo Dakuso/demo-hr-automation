@@ -1,2 +1,8 @@
 streamlit
 pandas
+pydantic
+dotenv
+langgraph
+langchain_anthropic
+langchain_core
+

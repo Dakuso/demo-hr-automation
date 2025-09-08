@@ -72,6 +72,11 @@ def process_email_with_langgraph(email_text):
     Process email and generate Giovanni Matadore data comparison.
     Replace this with your actual LangGraph implementation.
     """
+    if not st.session_state.anthropic_api_key:
+        return {
+            "status": "error",
+            "error": "Anthropic API Key not provided."
+        }
     try:
         # Simulate some processing
         word_count = len(email_text.split())
@@ -128,6 +133,21 @@ def process_email_with_langgraph(email_text):
         }
 
 # -----------------------------------------------------------------------------
+# Initialize session state for the API key
+# This ensures that these values persist across reruns.
+
+if 'anthropic_api_key' not in st.session_state:
+    st.session_state.anthropic_api_key = ''
+
+# Create a secret input field in a sidebar or expander
+st.sidebar.header("🔑 API Key Configuration")
+st.session_state.anthropic_api_key = st.sidebar.text_input(
+    "Enter your Anthropic API Key:",
+    type="password"
+)
+
+
+# -----------------------------------------------------------------------------
 # Initialize session state variables
 # This ensures that these values persist across reruns.
 if 'processing_complete' not in st.session_state:
@@ -153,7 +173,7 @@ execution behind the scenes and provides a sample writeback.
 # Add some spacing
 ''
 ''
-employee_display = True
+employee_display = False
 if employee_display:
     st.title("🏢 Employee Data Dashboard")
 
