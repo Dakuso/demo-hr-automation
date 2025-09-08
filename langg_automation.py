@@ -15,6 +15,7 @@ class State(TypedDict):
     output: str
     currentData: str
     proposedData: str
+    error: str
 
 class RequestClassification(BaseModel):
     """ Classifies the requests into change requests and others """
@@ -73,7 +74,7 @@ Always include the name of the Person so we know who we talk about and if you co
         try:
             changes = json.loads(output.content)
         except:
-            raise ValueError("There was no valid JSON parsed")
+            raise ValueError(f"There was no valid JSON parsed \n\n {output.content}")
         
         # Loading Database at runtime TODO: 
         try:

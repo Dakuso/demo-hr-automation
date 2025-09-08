@@ -96,7 +96,7 @@ def convert_to_field_value_format(df, header, field_mapping=None):
             'Department': 'Department',
             'HireDate': 'Hire Date',
             'WorkloadPercentage': 'Workload Percentage',
-            'AnnualGrossSalary_CHF': 'Annual Gross Salary (CHF)',
+            'AnnualGrossSalary_CHF': 'Salary (CHF)',
             'IBAN': 'IBAN',
             'BankName': 'Bank Name',
             'TaxAtSource_Code': 'Tax at Source Code'
@@ -147,7 +147,6 @@ def process_email_with_langgraph(email_text):
         char_count = len(email_text)
         
         result = {
-            "status": "success",
             "word_count": word_count,
             "char_count": char_count,
         }
@@ -252,14 +251,20 @@ if st.button('Process Email', type='primary'):
         with st.spinner('Processing email...'):
             result = process_email_with_langgraph(email_input)
             print(result)
-            if result["status"] == "success":
+            if 'error' in result.keys():
+                # Store the result in the session state and reset flags
+                st.error(f"The automation ran into the following issue: {result['error']}")
+                st.session_state.processing_complete = False
+                st.session_state.changes_accepted = False
+            elif result["recClassification"] == False:
+                st.error(f"Error processing email, the AI detected no requested changes")
+                st.session_state.processing_complete = False
+            else: 
                 # Store the result in the session state and reset flags
                 st.session_state.processing_complete = True
                 st.session_state.processing_result = result
                 st.session_state.changes_accepted = False # Reset if reprocessing
-            else:
-                st.error(f"Error processing email: {result['error']}")
-                st.session_state.processing_complete = False
+               
     else:
         st.warning("Please paste some email content before processing.")
 
