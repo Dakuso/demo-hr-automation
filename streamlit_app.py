@@ -195,7 +195,9 @@ if 'changes_accepted' not in st.session_state:
 We're processing incoming email requests by first receiving 
 the mail, then generating an action plan and displaying the results. 
 Once we get permission to execute, the system handles the 
-execution behind the scenes and provides a sample writeback.
+execution behind the scenes and demos a sample writeback.
+
+The known employees are Anna Müller, Paolo Rossi, Sophie Dubois, Lukas Novak and Maria Silva.
 '''
 
 # Add some spacing
